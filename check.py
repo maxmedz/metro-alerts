@@ -13,8 +13,8 @@ import requests
 PARIS = ZoneInfo("Europe/Paris")
 STATE_FILE = Path(__file__).resolve().parent / "state.json"
 LINES = {
-    "1": {"prim": "line:IDFM:C01371", "citymapper": "M1"},
-    "7": {"prim": "line:IDFM:C01377", "citymapper": "M7"},
+    "1": "line:IDFM:C01371",
+    "7": "line:IDFM:C01377",
 }
 # Mon–Fri, Paris time. GitHub cron is UTC, so the window stays in Python.
 WINDOWS = ((time(7, 30), time(10, 0)), (time(17, 0), time(20, 0)))
@@ -90,49 +90,6 @@ def prim_status(line_id, now):
     return "ok", "Normal service"
 
 
-def citymapper_status():
-    """{line: (status, message)} for lines present in the feed."""
-    found = {}
-    try:
-        response = requests.get(
-            "https://citymapper.com/api/1/routestatus?region_id=fr-paris",
-            headers={"Accept-Language": "en"},
-            timeout=TIMEOUT,
-        )
-        response.raise_for_status()
-        groupings = response.json().get("groupings") or []
-    except Exception as exc:
-        print(f"citymapper: {exc}")
-        return found
-
-    routes = {}
-    for group in groupings:
-        if group.get("id") == "fr-paris-RATPMetro":
-            routes = {route.get("name"): route for route in group.get("routes") or []}
-    for line, ids in LINES.items():
-        route = routes.get(ids["citymapper"])
-        if not route:
-            print(f"citymapper: {ids['citymapper']} missing from feed")
-            continue
-        status = route.get("status") or {}
-        text = f"{status.get('summary') or ''} — {status.get('description') or ''}".strip(" —")[:300]
-        live = (status.get("level") or 0) >= 1 or bool(status.get("disruptions"))
-        if equipment_only(text) or not live:
-            found[line] = ("ok", "Normal service")
-        else:
-            found[line] = ("issue", text or "Disruption reported")
-    return found
-
-
-def combine(prim, citymapper):
-    """Issue if either source says so. None when both failed."""
-    reports = [item for item in (prim, citymapper) if item]
-    if not reports:
-        return None
-    issues = [message for status, message in reports if status == "issue"]
-    return ("issue", issues[0]) if issues else ("ok", "Normal service")
-
-
 def load_state():
     if not STATE_FILE.exists():
         return {}
@@ -178,11 +135,10 @@ def main():
         return
 
     state = load_state()
-    citymapper = citymapper_status()
-    for line, ids in LINES.items():
-        current = combine(prim_status(ids["prim"], now), citymapper.get(line))
+    for line, line_id in LINES.items():
+        current = prim_status(line_id, now)
         if current is None:
-            print(f"line {line}: both sources failed, state left unchanged")
+            print(f"line {line}: PRIM failed, state left unchanged")
             continue
 
         status, message = current
