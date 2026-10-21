@@ -1,9 +1,8 @@
 name: check
 
+# The minute schedule lives on the Cloudflare Worker. This workflow is manual only,
+# so a GitHub run does not send a second copy of the same alert.
 on:
-  schedule:
-    # UTC. Commute hours stay in check.py so the Paris clock change does not move the cron.
-    - cron: "*/5 * * * 1-5"
   workflow_dispatch:
 
 permissions:

@@ -58,6 +58,17 @@ def equipment_only(text):
     return bool(EQUIPMENT.search(text)) and not SERVICE.search(text)
 
 
+def status_clock(value, now):
+    # PRIM's stamp is already Paris local time.
+    parsed = parse_prim_time(value)
+    if parsed is None:
+        return now.strftime("%H:%M")
+    clock = parsed.strftime("%H:%M")
+    if parsed.date() != now.date():
+        return f"{parsed.day} {parsed.strftime('%b')} {clock}"
+    return clock
+
+
 def prim_status(line_id, now):
     """('issue'|'ok', message), or None when PRIM cannot be reached."""
     key = os.environ.get("PRIM_API_KEY", "").strip()
@@ -86,8 +97,8 @@ def prim_status(line_id, now):
         )[:300]
         if equipment_only(f"{tags} {text}"):
             continue
-        return "issue", text or "Disruption reported"
-    return "ok", "Normal service"
+        return "issue", text or "Disruption reported", status_clock(item.get("updated_at"), now)
+    return "ok", "Normal service", now.strftime("%H:%M")
 
 
 def load_state():
@@ -141,15 +152,19 @@ def main():
             print(f"line {line}: PRIM failed, state left unchanged")
             continue
 
-        status, message = current
+        status, message, status_at = current
         previous = (state.get(line) or {}).get("status")
-        row = {"status": status, "message": message}
+        checked = now.strftime("%H:%M")
+        row = {"status": status, "message": message, "status_at": status_at}
         if previous == status or (status == "ok" and previous != "issue"):
             # Same status, or the first time we see a healthy line: store it, stay quiet.
             state[line] = row
             continue
 
-        text = f"Metro {line}: {message}" if status == "issue" else f"✅ line {line} back to normal"
+        if status == "issue":
+            text = f"Metro {line} · status {status_at} · checked {checked} · {message}"
+        else:
+            text = f"✅ line {line} back to normal · status {checked} · checked {checked}"
         if notify(text):
             state[line] = row
             print(text)

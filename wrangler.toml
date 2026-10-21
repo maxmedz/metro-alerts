@@ -1,0 +1,16 @@
+name = "metro-alerts"
+main = "src/index.js"
+compatibility_date = "2026-10-21"
+workers_dev = true
+preview_urls = false
+
+# UTC hours cover Paris 07:30–10:00 and 17:00–20:00 in both summer and winter time.
+# The Worker drops minutes outside the exact Paris window.
+[triggers]
+crons = ["* 5-9,15-19 * * MON-FRI"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "metro-alerts"
+database_id = "23885d55-9b89-43ff-9681-407a4c32ee5b"
+migrations_dir = "migrations"
