@@ -93,6 +93,33 @@ export function equipmentOnly(text) {
   return EQUIPMENT.test(text) && !SERVICE.test(text);
 }
 
+function contains(haystack, needle) {
+  return haystack.toLowerCase().includes(needle.toLowerCase());
+}
+
+function clipAtWord(text, limit) {
+  if (text.length <= limit) return text;
+  const budget = limit - 1;
+  let cut = text.slice(0, budget);
+  if (text[budget] !== " ") {
+    const space = cut.lastIndexOf(" ");
+    if (space > 0) cut = cut.slice(0, space);
+  }
+  return `${cut.trimEnd()}…`;
+}
+
+export function disruptionMessage(messages, limit = 300) {
+  let texts = [];
+  for (const message of messages || []) {
+    const text = plainText(message.text);
+    if (!text) continue;
+    if (texts.some((kept) => contains(kept, text))) continue;
+    texts = texts.filter((kept) => !contains(text, kept));
+    texts.push(text);
+  }
+  return clipAtWord(texts.join(" — "), limit);
+}
+
 export function alertText(line, status, message, statusAt, checkedAt) {
   if (status === "issue") {
     return `Metro ${line} · status ${statusAt} · checked ${checkedAt} · ${message}`;
@@ -120,11 +147,7 @@ export async function primStatus(lineId, now, apiKey, fetchImpl = fetch) {
   for (const item of disruptions) {
     if (!disruptionIsLive(item, now)) continue;
     const tags = (item.tags || []).join(" ");
-    const text = (item.messages || [])
-      .map((message) => plainText(message.text))
-      .filter(Boolean)
-      .join(" — ")
-      .slice(0, 300);
+    const text = disruptionMessage(item.messages);
     if (equipmentOnly(`${tags} ${text}`)) continue;
     return {
       status: "issue",

@@ -58,6 +58,35 @@ def equipment_only(text):
     return bool(EQUIPMENT.search(text)) and not SERVICE.search(text)
 
 
+def _contains(haystack, needle):
+    return needle.casefold() in haystack.casefold()
+
+
+def _clip_at_word(text, limit):
+    if len(text) <= limit:
+        return text
+    budget = limit - 1
+    cut = text[:budget]
+    if budget < len(text) and text[budget] != " ":
+        space = cut.rfind(" ")
+        if space > 0:
+            cut = cut[:space]
+    return cut.rstrip() + "…"
+
+
+def disruption_message(messages, limit=300):
+    texts = []
+    for message in messages or []:
+        text = plain_text((message or {}).get("text"))
+        if not text:
+            continue
+        if any(_contains(kept, text) for kept in texts):
+            continue
+        texts = [kept for kept in texts if not _contains(text, kept)]
+        texts.append(text)
+    return _clip_at_word(" — ".join(texts), limit)
+
+
 def status_clock(value, now):
     # PRIM's stamp is already Paris local time.
     parsed = parse_prim_time(value)
@@ -92,9 +121,7 @@ def prim_status(line_id, now):
         if not disruption_is_live(item, now):
             continue
         tags = " ".join(item.get("tags") or [])
-        text = " — ".join(
-            part for part in (plain_text(m.get("text")) for m in item.get("messages") or []) if part
-        )[:300]
+        text = disruption_message(item.get("messages"))
         if equipment_only(f"{tags} {text}"):
             continue
         return "issue", text or "Disruption reported", status_clock(item.get("updated_at"), now)

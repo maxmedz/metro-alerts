@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   alertText,
   disruptionIsLive,
+  disruptionMessage,
   equipmentOnly,
   inCommuteWindow,
   statusClock,
@@ -40,6 +41,20 @@ test("a past disruption and a lift notice do not alert", () => {
   );
   assert.equal(equipmentOnly("ascenseur en panne"), true);
   assert.equal(equipmentOnly("ascenseur et trafic perturbé"), false);
+});
+
+test("alert message shows each text once and clips on a word", () => {
+  assert.equal(
+    disruptionMessage([
+      { text: "Station fermée (sans correspondances)" },
+      { text: "<p>Châtelet : Mesures de sécurité - Station fermée (sans correspondances)</p>" },
+      { text: "Châtelet : Mesures de sécurité - Station fermée (sans correspondances)" },
+      { text: "Les trains ne marquent pas l'arrêt à Châtelet" },
+    ]),
+    "Châtelet : Mesures de sécurité - Station fermée (sans correspondances) — Les trains ne marquent pas l'arrêt à Châtelet",
+  );
+  assert.equal(disruptionMessage([{ text: "aaaa bbbb cccc" }], 8), "aaaa…");
+  assert.equal(disruptionMessage([{ text: "aaaa bbbb cccc" }], 10), "aaaa bbbb…");
 });
 
 test("alert text always carries both times", () => {
